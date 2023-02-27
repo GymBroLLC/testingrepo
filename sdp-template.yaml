@@ -1,0 +1,186 @@
+apiVersion: scaffolder.backstage.io/v1beta3
+kind: Template
+metadata:
+  name: ecs-fargate-template
+  title: ECS Fargate /w Service or Task Deployment
+  description: Create an AWS CDK project with ECS Fargate Service or Task
+  tags:
+    - recommended
+    - typescript
+    - ecs-fargate
+    - aws-cdk
+
+spec:
+  owner: tee-team
+  type: service
+  parameters:
+    - title: Tell us about your project
+      required:
+        - neeSlid
+        - neeCode
+        - teamName
+        - appName
+        - description
+        - runnerLabel
+      properties:
+        neeSlid:
+          title: NEE Slid
+          type: string
+          description: NEE Slid for NEEito Role
+        neeCode:
+          title: NEE Code
+          type: string
+          description: NEE Code the component falls under
+          maxLength: 5
+          minLength: 5
+        teamName:
+          title: Team Name
+          type: string
+          description: The team name for the NEEito role, this must be unique
+        appName:
+          title: Application Name
+          type: string
+          description: The name of the application
+          ui:autofocus: true
+          ui:options:
+            rows: 5
+        description:
+          title: Description
+          type: string
+          description: Describe the project
+        runnerLabel:
+          title: Runner Name
+          type: string
+          description: SDP runner label for deployment
+
+    - title: Tell us about your AWS Environment
+      required:
+        - account
+        - region
+        - accountPrefix
+        - acmCertificateArn
+        - ecrRepoName
+        - ecsClusterName
+        - ecsJobType
+      properties:
+        account:
+          title: account
+          type: string
+          description: Twelve digit aws account number (eg-123456789012)
+        region:
+          title: region
+          type: string
+          default: us-east-1
+          description: Region where the infrastructre is being deployed to
+        accountPrefix:
+          title: accountPrefix
+          type: string
+          description: Account prefix can be found on nimbus.nee.com (under Accounts -> Account Prefix)
+        acmCertificateArn:
+          title: acmCertificateArn
+          type: string
+          description: A certifacte for the domain is required for the ALB
+        ecrRepoName:
+          title: ecrRepoName
+          type: string
+          description: AWS ECR Repo Name
+        ecsClusterName:
+          title: ecsClusterName
+          type: string
+          description: AWS ECS Cluster Name
+        ecsJobType:
+          type: string
+          default: none
+          enum:
+            - service
+            - task
+      dependencies:
+        ecsJobType:
+          oneOf:
+            - properties:
+                ecsJobType:
+                  enum:
+                    - task
+                ecsCount:
+                  title: ecsCount
+                  type: number
+                  description: the number of instances that will run your service/task
+                  default: 1
+                subnets:
+                  title: subnets
+                  type: string
+                  description: List of subnets (comma separated)
+                  default: 'subnet-0323232, subnet-0323232'
+                securityGroups:
+                  title: securityGroups
+                  type: string
+                  description: List of security groups (comma separated)
+                  default: 'sg-023232, sg-023232'
+            - properties:
+                ecsJobType:
+                  enum:
+                    - service
+                ecsServiceName:
+                  title: ecsServiceName
+                  type: string
+                  description: The name of the ECS service that will be running your api/persistent docker image
+                  default: 'neecode-teamName-appName'
+                ecsContainerName:
+                  title: ecsContainerName
+                  type: string
+                  description: The name of the ECS container that will run in the cluster
+                  default: 'neecode-teamName-containerName'
+    - title: Name your GitHub Repository
+      required:
+        - repoName
+      properties:
+        repoName:
+          title: Repository Name
+          type: string
+          description: This name must not exist in the NextEra-Energy organization
+
+  #   here's the steps that are executed in series in the scaffolder backend
+  steps:
+    - id: fetch-base
+      name: Fetch Base
+      action: fetch:template
+      input:
+        url: ./
+        cookiecutterCompat: true
+        values:
+          neeSlid: '${{ parameters.neeSlid }}'
+          neeCode: '${{ parameters.neeCode }}'
+          teamName: '${{ parameters.teamName }}'
+          appName: '${{ parameters.appName }}'
+          description: '${{ parameters.description }}'
+          runnerLabel: '${{ parameters.runnerLabel }}'
+          repoSlug: 'NextEra-Energy/${{ parameters.repoName }}'
+          account: '${{ parameters.account }}'
+          region: '${{ parameters.region }}'
+          accountPrefix: '${{ parameters.accountPrefix }}'
+          acmCertificateArn: '${{ parameters.acmCertificateArn }}'
+          ecrRepoName: '${{ parameters.ecrRepoName }}'
+          ecsClusterName: '${{ parameters.ecsClusterName }}'
+          ecsJobType: '${{ parameters.ecsJobType }}'
+          ecsCount: '${{ parameters.ecsCount }}'
+          subnets: '${{ parameters.subnets }}'
+          securityGroups: '${{ parameters.securityGroups }}'
+          ecsServiceName: '${{ parameters.ecsServiceName }}'
+          ecsContainerName: '${{ parameters.ecsContainerName }}'
+          repoName: '${{ parameters.repoName }}'
+
+    - id: publish
+      name: Publish
+      action: publish:github
+      input:
+        allowedHosts: ['github.com']
+        description: '${{ parameters.description }}'
+        repoUrl: github.com?owner=NextEraEnergy-Sandbox&repo=${{ parameters.neeCode }}-${{ parameters.repoName }}
+
+    - id: configure-github
+      name: Configure GitHub Settings
+      action: nextera:post-repo-create
+      input:
+        repoName: '${{ parameters.repoName }}'
+        neeCode: '${{ parameters.neeCode }}'
+        teamName: '${{ parameters.teamName }}'
